@@ -49,7 +49,7 @@ void* malloc(size_t size) {
 		// also set it as occupied so id doesn't get parsed
 		header->s.isFree = false;
 		pthread_mutex_unlock(&global_malloc_lock);
-		return (void*) header + 1; 
+		return (void*) header++; 
 	}
 
   // if not then allocate the space on top of the heap,
@@ -82,9 +82,9 @@ void* malloc(size_t size) {
 
 	pthread_mutex_unlock(&global_malloc_lock);
 
-	// ofset the pointer for 1 byte to get the block,
+	// ofset the pointer for 1 byte to get the block (by incrementing it),
 	// and cast it as a void pointer so we can return it
-	return (void*) (header + 1);
+	return (void*) (header++);
 }
 
 // gets sutable block if it already exists
@@ -100,6 +100,70 @@ header_t* get_free_block(size_t size) {
 
 	return NULL;
 }
+
+
+// function for freeing memory blocks
+void free(void* block) {
+
+	header_t *header, *iterator;
+	void* program_break;
+
+	// check if the block exists
+	if (!block)
+		return;
+	
+	// aquiaring the global lock (or something)
+	pthread_mutex_lock(&global_malloc_lock);
+	// getting the header of the block by offsetting the block pointer
+	// (this time by decrementing it)
+	header = (header_t*) block--;
+
+
+	// check if the block is the last block on the heap,
+	// by offsetting the block pointer by the size of the block
+	// (the char* cast is used because the size variable of the header is in bytes)
+	// and comparing it to the current address of the program_break
+	if ((char*) block + header->s.size == program_break) {
+
+		// if there is no other blocks, unset both the head and tail
+		if (head == tail)
+			head = tail = NULL;
+		
+		// if there are still blocks before this one,
+		// search the linked list from the begining
+		// and find the block before the tail (this block that is being freed)
+		// and remove the link to the block being freed and set it as the new tail
+		else {
+
+			iterator = head;
+
+			// iterate trough the list until the block before the tail is found
+			while(iterator) {
+
+				// when found remove the link and set it as the new tail
+				if (iterator->s.next == tail) {
+					iterator->s.next == NULL;
+					tail == iterator;
+				}
+
+				tail = tail->s.next;
+			}
+
+		}
+
+		// give the memory back to the OS by decrementing the program break
+
+		// decrement the program break by the combined size of both header and the block
+		// by subtracting it from 0 (because it decrements by passing in a negative number)
+		sbrk(0 - sizeof(header) - header->s.size);
+		pthread_mutex_unlock(&global_malloc_lock);
+	}
+
+	// marking the block as free
+	header->s.isFree = true;
+	pthread_mutex_unlock(&global_malloc_lock);
+}
+
 
 int main(void) {
 	return 0;
