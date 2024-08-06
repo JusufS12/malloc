@@ -1,10 +1,11 @@
-BIN=alloc
-BIN_PATH=bin/$(BIN)
 SRC=alloc.c
+BIN=alloc.so
 
-$(BIN_PATH): $(SRC)
-	gcc -o $(BIN_PATH) $(SRC)
+BIN_PATH=bin/$(BIN)
+
+
+install: $(SRC)
+	gcc -o $(BIN_PATH) -fPIC -shared $(SRC)
 
 clean: $(SRC)
 	rm $(BIN_PATH)
-	gcc -o $(BIN_PATH) $(SRC)

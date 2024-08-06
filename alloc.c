@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <pthread.h>
+#include <string.h>
 
 // implementing bool type with enum
 typedef enum {false, true} bool;
@@ -49,7 +50,7 @@ void* malloc(size_t size) {
 		// also set it as occupied so id doesn't get parsed
 		header->s.isFree = false;
 		pthread_mutex_unlock(&global_malloc_lock);
-		return (void*) header++; 
+		return (void*)header + 1; 
 	}
 
   // if not then allocate the space on top of the heap,
@@ -84,7 +85,7 @@ void* malloc(size_t size) {
 
 	// ofset the pointer for 1 byte to get the block (by incrementing it),
 	// and cast it as a void pointer so we can return it
-	return (void*) (header++);
+	return (void*)(header + 1);
 }
 
 // gets sutable block if it already exists
@@ -116,8 +117,10 @@ void free(void* block) {
 	pthread_mutex_lock(&global_malloc_lock);
 	// getting the header of the block by offsetting the block pointer
 	// (this time by decrementing it)
-	header = (header_t*) block--;
+	header = (header_t*)block - 1;
 
+	// get the current program break
+	program_break = sbrk(0);
 
 	// check if the block is the last block on the heap,
 	// by offsetting the block pointer by the size of the block
@@ -165,6 +168,62 @@ void free(void* block) {
 }
 
 
-int main(void) {
-	return 0;
+// allocates memory for an array and sets all memory to 0s
+void* calloc(size_t num, size_t nsize) {
+
+	void* block;
+	size_t size;
+
+	// check if the arguments exist
+	if (!num || !nsize)
+		return NULL;
+
+	// calculate the full size
+	size = num * nsize;
+
+	// check if there was a memory overflow
+	if (nsize != size / num)
+		return NULL;
+
+	// allocate memory with malloc
+	block = malloc(size);
+	// and check if it worked
+	if (!block)
+		return NULL;
+
+	// start form te address in block and fill with 0s
+	memset(block, 0, size);
+
+	return block;
+}
+
+
+// reallocates the memory of an already existing block
+void* realloc(void* block, size_t size) {
+
+	header_t* header;
+	// the newly allocated block (if there is a need for it)
+	void* ret;
+
+	// if the block doesn't already exist just allocate a new block,
+	// also if the size isn't valid malloc will just return NULL
+	if (!block || !size)
+		return malloc(size);
+
+	// get the header of the block and check if there is enough size to reallocate
+	header = (header_t*)block - 1;
+	if (header->s.size >= size)
+		// if there is enough space we have no need to reallocate
+		return block;
+
+	// allocate a new block
+	ret = malloc(size);
+	// and coppy everything from the old block to the new one
+	if (ret) {
+		memcpy(ret, block, header->s.size);
+		// and also free the old block because it is no longer needed
+		free(block);
+	}
+
+	return ret;
 }
